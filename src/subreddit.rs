@@ -4,6 +4,10 @@ use crate::utils::{
 	catch_random, error, filter_posts, format_num, format_url, get_filters, info, nsfw_landing, param, redirect, rewrite_urls, setting, template, to_absolute_url, val, Post,
 	Preferences, Subreddit,
 };
+use crate::utils::{
+	catch_random, clean_url, error, filter_posts, format_num, format_url, get_filters, info, nsfw_landing, param, redirect, rewrite_urls, setting, template, val, Post,
+	Preferences, Subreddit,
+};
 use crate::{client::json, server::RequestExt, server::ResponseExt};
 use crate::{config, utils};
 use askama::Template;
@@ -164,6 +168,10 @@ pub async fn community(req: Request<Body>) -> Result<Response<Body>, String> {
 	} else {
 		match Post::fetch(&path, quarantined).await {
 			Ok((mut posts, after)) => {
+				let clean_urls = setting(&req, "clean_urls");
+				if clean_urls == "on".to_owned() {
+					posts.iter_mut().for_each(|post| post.media.url = clean_url(post.media.url.clone()));
+				}
 				let (_, all_posts_filtered) = filter_posts(&mut posts, &filters);
 				let no_posts = posts.is_empty();
 				let all_posts_hidden_nsfw = !no_posts && (posts.iter().all(|p| p.flags.nsfw) && setting(&req, "show_nsfw") != "on");
