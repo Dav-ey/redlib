@@ -1,12 +1,7 @@
 #![allow(clippy::cmp_owned)]
 
 use crate::utils::{
-	catch_random, error, filter_posts, format_num, format_url, get_filters, info, nsfw_landing, param, redirect, rewrite_urls, setting, template, to_absolute_url, val, Post,
-	Preferences, Subreddit,
-};
-use crate::utils::{
-	catch_random, clean_url, error, filter_posts, format_num, format_url, get_filters, info, nsfw_landing, param, redirect, rewrite_urls, setting, template, val, Post,
-	Preferences, Subreddit,
+	Post, Preferences, Subreddit, catch_random, clean_url, error, filter_posts, format_num, format_url, get_filters, info, nsfw_landing, param, redirect, rewrite_urls, setting, template, to_absolute_url, val
 };
 use crate::{client::json, server::RequestExt, server::ResponseExt};
 use crate::{config, utils};
@@ -145,7 +140,11 @@ pub async fn community(req: Request<Body>) -> Result<Response<Body>, String> {
 		params.push_str(&format!("&geo_filter={geo_filter}"));
 	}
 
-	let path = format!("/r/{}/{sort}.json?{}{params}", sub_name.replace('+', "%2B"), req.uri().query().unwrap_or_default());
+	let path = format!(
+		"/r/{}/{sort}.json?{}{params}",
+		sub_name.replace('+', "%2B"),
+		req.uri().query().unwrap_or_default()
+	);
 	let url = String::from(req.uri().path_and_query().map_or("", |val| val.as_str()));
 	let redirect_url = url[1..].replace('?', "%3F").replace('&', "%26").replace('+', "%2B");
 	let filters = get_filters(&req);
@@ -299,8 +298,7 @@ pub async fn subscriptions_filters(req: Request<Body>) -> Result<Response<Body>,
 		Ok(posts) => posts["data"]["children"]
 			.as_array()
 			.map(|list| {
-				list
-					.iter()
+				list.iter()
 					.map(|post| {
 						let display_name = post["data"]["subreddit"].as_str().unwrap_or_default();
 						(display_name.to_lowercase(), display_name)
@@ -581,7 +579,11 @@ async fn subreddit(sub: &str, quarantined: bool) -> Result<Subreddit, String> {
 
 	// Fetch subreddit icon either from the community_icon or icon_img value
 	let community_icon: &str = res["data"]["community_icon"].as_str().unwrap_or_default();
-	let icon = if community_icon.is_empty() { val(&res, "icon_img") } else { community_icon.to_string() };
+	let icon = if community_icon.is_empty() {
+		val(&res, "icon_img")
+	} else {
+		community_icon.to_string()
+	};
 
 	Ok(Subreddit {
 		name: val(&res, "display_name"),
@@ -655,7 +657,8 @@ pub async fn rss(req: Request<Body>) -> Result<Response<Body>, String> {
 
 	// Create the HTTP response
 	let mut res = Response::new(Body::from(body));
-	res.headers_mut().insert(CONTENT_TYPE, hyper::header::HeaderValue::from_static("application/rss+xml"));
+	res.headers_mut()
+		.insert(CONTENT_TYPE, hyper::header::HeaderValue::from_static("application/rss+xml"));
 
 	Ok(res)
 }
@@ -667,7 +670,11 @@ fn apply_enclosure(item: &mut Item, post: &Post) {
 	// Embed the number of gallery images in description and content since
 	// only the first image in the gallery is used for the enclosure
 	if post.post_type == "gallery" && post.gallery.len() > 1 {
-		item.set_description(format!("<a href='{}'>Gallery with {} images</a>", to_absolute_url(&post.permalink), post.gallery.len()));
+		item.set_description(format!(
+			"<a href='{}'>Gallery with {} images</a>",
+			to_absolute_url(&post.permalink),
+			post.gallery.len()
+		));
 
 		if let Some(content) = item.content() {
 			let new_content = format!("{}<br/>{}", item.description().unwrap_or(""), content,);
