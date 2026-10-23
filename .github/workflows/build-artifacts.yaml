@@ -1,14 +1,6 @@
 name: Release Build
 
-on:
-  push:
-    paths-ignore:
-      - "*.md"
-      - "compose.*"
-    branches:
-      - "main"
-  release:
-    types: [published]
+on: workflow_dispatch
 
 env: 
   CARGO_TERM_COLOR: always
@@ -36,20 +28,8 @@ jobs:
       - name: Build
         run: ./scripts/build-musl-docker.sh "${{ matrix.target }}"
 
-      - name: Package release
-        run: tar czf redlib-${{ matrix.target }}.tar.gz -C target/${{ matrix.target }}/release/ redlib
-
-      - name: Upload release
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ steps.version.outputs.VERSION }}
-          name: ${{ steps.version.outputs.VERSION }} - ${{ github.event.head_commit.message }}
-          draft: true
-          files: |
-            redlib-${{ matrix.target }}.tar.gz
-          body: |
-            - ${{ github.event.head_commit.message }} ${{ github.sha }}
-          generate_release_notes: true
-
-
-
+          name: redlib-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release
