@@ -263,19 +263,23 @@ pub async fn shreddit_fragment(path: String, cursor: Option<String>) -> Result<S
 		return Err(format!("Refusing to fetch non-shreddit path | {path}"));
 	}
 
-	if let Some(body) = shreddit_request(&path, cursor.as_deref()).await? {
+	if let Some(body) = shreddit_request(&path, cursor.as_deref(), 3).await? {
 		return Ok(body);
 	}
 
 	warn!("Reddit rate limited the shreddit session, starting a new one");
 	SHREDDIT_SESSION.clear();
-	shreddit_request(&path, cursor.as_deref())
+	shreddit_request(&path, cursor.as_deref(), 3)
 		.await?
 		.ok_or_else(|| format!("Reddit is rate limiting comment requests. Try refreshing in a few seconds. | {path}"))
 }
 
 /// Returns `Ok(None)` when Reddit rate limits or challenges the session.
-async fn shreddit_request(path: &str, cursor: Option<&str>) -> Result<Option<String>, String> {
+#[async_recursion::async_recursion]
+async fn shreddit_request(path: &str, cursor: Option<&str>, tries: i8) -> Result<Option<String>, String> {
+	if tries == 0 {
+		return Ok(None);
+	}
 	let url = format!("{ALTERNATIVE_REDDIT_URL_BASE}{path}");
 
 	let builder = match cursor {
@@ -298,7 +302,20 @@ async fn shreddit_request(path: &str, cursor: Option<&str>) -> Result<Option<Str
 		return Ok(None);
 	}
 	if !status.is_success() {
-		return Err(format!("Reddit returned {status} | {path}"));
+		if status == wreq::StatusCode::FOUND {
+			return match response.headers().get(wreq_header::LOCATION) {
+				Some(val) => {
+					let Ok(original) = val.to_str() else {
+						return Err("Unable to decode Location header.".to_string());
+					};
+
+					shreddit_request(original, cursor, tries - 1).await
+				}
+				None => Ok(None),
+			}
+		} else {
+			return Err(format!("Reddit returned {status} | {path}"));
+		}
 	}
 
 	let remaining = response
